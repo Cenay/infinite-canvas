@@ -13,7 +13,7 @@ import {
   ArrowElement,
   TextElement,
   ImageElement,
-} from '../types';
+} from '../types'; 
 
 interface InfiniteCanvasProps {
   tool: Tool;
