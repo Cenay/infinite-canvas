@@ -67,6 +67,11 @@ export interface ImageElement extends CanvasElement {
   height: number;
   src: string;
   imageData?: HTMLImageElement;
+  // Clipping rectangle (for cropping display without modifying src)
+  clipX?: number;
+  clipY?: number;
+  clipWidth?: number;
+  clipHeight?: number;
 }
 
 export type CanvasElementType =

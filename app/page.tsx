@@ -37,14 +37,30 @@ export default function Home() {
 
   // Save history to localStorage
   useEffect(() => {
-    localStorage.setItem('canvasHistory', JSON.stringify(history));
-    localStorage.setItem('canvasHistoryIndex', JSON.stringify(historyIndex));
+    try {
+      localStorage.setItem('canvasHistory', JSON.stringify(history));
+      localStorage.setItem('canvasHistoryIndex', JSON.stringify(historyIndex));
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        console.warn('localStorage quota exceeded, clearing old history');
+        // Clear history and start fresh
+        localStorage.removeItem('canvasHistory');
+        localStorage.removeItem('canvasHistoryIndex');
+        setHistory([history[historyIndex]]);
+        setHistoryIndex(0);
+      }
+    }
   }, [history, historyIndex]);
 
   const handleElementsChange = useCallback((elements: CanvasElementType[]) => {
     setHistory((prev) => {
       const newHistory = prev.slice(0, historyIndex + 1);
       newHistory.push(elements);
+      // Limit history to 50 entries to prevent localStorage quota issues
+      const maxHistory = 50;
+      if (newHistory.length > maxHistory) {
+        return newHistory.slice(newHistory.length - maxHistory);
+      }
       return newHistory;
     });
     setHistoryIndex((prev) => prev + 1);
