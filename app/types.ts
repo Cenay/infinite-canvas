@@ -1,4 +1,6 @@
-export type Tool = 'select' | 'pen' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'text' | 'image';
+export type Tool = 'select' | 'pen' | 'rectangle' | 'circle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'text' | 'image' | 'eraser';
+
+export type StrokeStyle = 'solid' | 'dashed' | 'dotted';
 
 export interface Point {
   x: number;
@@ -7,9 +9,16 @@ export interface Point {
 
 export interface CanvasElement {
   id: string;
-  type: 'path' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'text' | 'image';
+  type: 'path' | 'rectangle' | 'circle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'text' | 'image';
   color: string;
   strokeWidth: number;
+  fill?: string;
+  opacity?: number;
+  roughness?: number;
+  strokeStyle?: StrokeStyle;
+  seed?: number;
+  selected?: boolean;
+  rotation?: number;
 }
 
 export interface PathElement extends CanvasElement {
@@ -23,7 +32,6 @@ export interface RectangleElement extends CanvasElement {
   y: number;
   width: number;
   height: number;
-  fill?: string;
 }
 
 export interface CircleElement extends CanvasElement {
@@ -31,7 +39,22 @@ export interface CircleElement extends CanvasElement {
   x: number;
   y: number;
   radius: number;
-  fill?: string;
+}
+
+export interface EllipseElement extends CanvasElement {
+  type: 'ellipse';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface DiamondElement extends CanvasElement {
+  type: 'diamond';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface LineElement extends CanvasElement {
@@ -73,6 +96,8 @@ export type CanvasElementType =
   | PathElement
   | RectangleElement
   | CircleElement
+  | EllipseElement
+  | DiamondElement
   | LineElement
   | ArrowElement
   | TextElement

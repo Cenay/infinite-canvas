@@ -1,17 +1,21 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import InfiniteCanvas from './components/InfiniteCanvas';
 import Toolbar from './components/Toolbar';
-import { Tool, CanvasElementType, ImageElement } from './types';
+import { Tool, CanvasElementType, ImageElement, StrokeStyle } from './types';
 
 export default function Home() {
   const [tool, setTool] = useState<Tool>('pen');
-  const [color, setColor] = useState('#000000');
+  const [color, setColor] = useState('#1e1e1e');
   const [strokeWidth, setStrokeWidth] = useState(2);
+  const [fill, setFill] = useState<string>('transparent');
+  const [opacity, setOpacity] = useState(1);
+  const [roughness, setRoughness] = useState(1);
+  const [strokeStyle, setStrokeStyle] = useState<StrokeStyle>('solid');
   const [history, setHistory] = useState<CanvasElementType[][]>([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
-  const [pendingImage, setPendingImage] = useState<File | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Load history from localStorage
   useEffect(() => {
@@ -77,6 +81,38 @@ export default function Home() {
     }
   }, []);
 
+  const handleExport = useCallback(() => {
+    // Create a temporary canvas for export
+    const exportCanvas = document.createElement('canvas');
+    const sourceCanvas = document.querySelector('canvas');
+
+    if (!sourceCanvas) return;
+
+    exportCanvas.width = sourceCanvas.width;
+    exportCanvas.height = sourceCanvas.height;
+
+    const ctx = exportCanvas.getContext('2d');
+    if (!ctx) return;
+
+    // Fill with white background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+    // Draw the current canvas content
+    ctx.drawImage(sourceCanvas, 0, 0);
+
+    // Download as PNG
+    exportCanvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `excalidraw-${Date.now()}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+  }, []);
+
   const handleImageUpload = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -92,6 +128,10 @@ export default function Home() {
           src: e.target?.result as string,
           color: color,
           strokeWidth: strokeWidth,
+          fill,
+          opacity,
+          roughness,
+          strokeStyle,
           imageData: img,
         };
 
@@ -104,11 +144,12 @@ export default function Home() {
       img.src = e.target?.result as string;
     };
     reader.readAsDataURL(file);
-  }, [color, strokeWidth]);
+  }, [color, strokeWidth, fill, opacity, roughness, strokeStyle]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Undo/Redo
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z' && !e.shiftKey) {
           e.preventDefault();
@@ -119,8 +160,11 @@ export default function Home() {
         }
       }
 
+      // Don't trigger tool shortcuts if typing in an input
+      if (document.activeElement?.tagName === 'INPUT') return;
+
       // Tool shortcuts
-      switch (e.key) {
+      switch (e.key.toLowerCase()) {
         case 'v':
           setTool('select');
           break;
@@ -130,8 +174,13 @@ export default function Home() {
         case 'r':
           setTool('rectangle');
           break;
-        case 'c':
-          setTool('circle');
+        case 'o':
+          setTool('ellipse');
+          break;
+        case 'd':
+          if (!e.ctrlKey && !e.metaKey) {
+            setTool('diamond');
+          }
           break;
         case 'l':
           setTool('line');
@@ -141,6 +190,9 @@ export default function Home() {
           break;
         case 't':
           setTool('text');
+          break;
+        case 'e':
+          setTool('eraser');
           break;
       }
     };
@@ -158,9 +210,18 @@ export default function Home() {
         onColorChange={setColor}
         strokeWidth={strokeWidth}
         onStrokeWidthChange={setStrokeWidth}
+        fill={fill}
+        onFillChange={setFill}
+        opacity={opacity}
+        onOpacityChange={setOpacity}
+        roughness={roughness}
+        onRoughnessChange={setRoughness}
+        strokeStyle={strokeStyle}
+        onStrokeStyleChange={setStrokeStyle}
         onClear={handleClear}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        onExport={handleExport}
         onImageUpload={handleImageUpload}
         canUndo={historyIndex > 0}
         canRedo={historyIndex < history.length - 1}
@@ -169,6 +230,10 @@ export default function Home() {
         tool={tool}
         color={color}
         strokeWidth={strokeWidth}
+        fill={fill}
+        opacity={opacity}
+        roughness={roughness}
+        strokeStyle={strokeStyle}
         onElementsChange={handleElementsChange}
       />
     </div>
