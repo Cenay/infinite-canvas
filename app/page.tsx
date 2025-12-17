@@ -39,10 +39,30 @@ export default function Home() {
     }
   }, []);
 
-  // Save history to localStorage
+  // Save history to localStorage with error handling
   useEffect(() => {
-    localStorage.setItem('canvasHistory', JSON.stringify(history));
-    localStorage.setItem('canvasHistoryIndex', JSON.stringify(historyIndex));
+    try {
+      // Limit history to last 50 states to prevent quota issues
+      const limitedHistory = history.slice(-50);
+      const adjustedIndex = Math.min(historyIndex, limitedHistory.length - 1);
+
+      localStorage.setItem('canvasHistory', JSON.stringify(limitedHistory));
+      localStorage.setItem('canvasHistoryIndex', JSON.stringify(adjustedIndex));
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        console.warn('localStorage quota exceeded, clearing history...');
+        // Clear history but keep current state
+        const currentElements = history[historyIndex] || [];
+        try {
+          localStorage.setItem('canvasHistory', JSON.stringify([currentElements]));
+          localStorage.setItem('canvasHistoryIndex', JSON.stringify(0));
+        } catch {
+          // If still failing, clear everything
+          localStorage.removeItem('canvasHistory');
+          localStorage.removeItem('canvasHistoryIndex');
+        }
+      }
+    }
   }, [history, historyIndex]);
 
   const handleElementsChange = useCallback((elements: CanvasElementType[]) => {
