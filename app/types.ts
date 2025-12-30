@@ -2,6 +2,13 @@ export type Tool = 'select' | 'pen' | 'rectangle' | 'circle' | 'ellipse' | 'diam
 
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted';
 
+export interface TextDecorators {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+}
+
 export interface Point {
   x: number;
   y: number;
@@ -80,6 +87,7 @@ export interface TextElement extends CanvasElement {
   text: string;
   fontSize: number;
   fontFamily: string;
+  textDecorators?: TextDecorators;
 }
 
 export interface ImageElement extends CanvasElement {

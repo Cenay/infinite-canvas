@@ -18,6 +18,7 @@ import {
   TextElement,
   ImageElement,
   StrokeStyle,
+  TextDecorators,
 } from '../types';
 
 interface InfiniteCanvasProps {
@@ -28,6 +29,10 @@ interface InfiniteCanvasProps {
   opacity?: number;
   roughness?: number;
   strokeStyle?: StrokeStyle;
+  fontFamily?: string;
+  fontSize?: number;
+  textDecorators?: TextDecorators;
+  eraserSize?: number;
   onElementsChange?: (elements: CanvasElementType[]) => void;
 }
 
@@ -39,6 +44,10 @@ export default function InfiniteCanvas({
   opacity = 1,
   roughness = 1,
   strokeStyle = 'solid',
+  fontFamily = 'Arial',
+  fontSize = 20,
+  textDecorators = {},
+  eraserSize = 20,
   onElementsChange,
 }: InfiniteCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -93,7 +102,7 @@ export default function InfiniteCanvas({
       localStorage.setItem('canvasElements', JSON.stringify(elements));
       onElementsChange?.(elements);
     }
-  }, [elements, onElementsChange]);
+  }, [elements]);
 
   // Save viewport to localStorage
   useEffect(() => {
@@ -163,7 +172,7 @@ export default function InfiniteCanvas({
     }
 
     ctx.restore();
-  }, [elements, currentElement, viewport, selectionBox]);
+  }, [elements, currentElement, viewport, selectionBox, selectedElements]);
 
   const drawGrid = (ctx: CanvasRenderingContext2D) => {
     const gridSize = 20;
@@ -206,8 +215,8 @@ export default function InfiniteCanvas({
 
     ctx.globalAlpha = element.opacity ?? 1;
 
-    // Draw selection highlight
-    if (element.selected) {
+    // Draw selection highlight (derive from selectedElements set)
+    if (selectedElements.has(element.id)) {
       ctx.save();
       ctx.strokeStyle = '#6965db';
       ctx.lineWidth = 2 / viewport.scale;
@@ -312,9 +321,37 @@ export default function InfiniteCanvas({
       }
       case 'text': {
         const textEl = element as TextElement;
-        ctx.font = `${textEl.fontSize}px ${textEl.fontFamily}`;
+        let fontStyle = '';
+        if (textEl.textDecorators?.bold) fontStyle += 'bold ';
+        if (textEl.textDecorators?.italic) fontStyle += 'italic ';
+        ctx.font = `${fontStyle}${textEl.fontSize}px ${textEl.fontFamily}`;
         ctx.fillStyle = element.color;
+        
+        // Draw text
         ctx.fillText(textEl.text, textEl.x, textEl.y);
+        
+        // Draw underline manually if needed
+        if (textEl.textDecorators?.underline) {
+          const metrics = ctx.measureText(textEl.text);
+          ctx.strokeStyle = element.color;
+          ctx.lineWidth = Math.max(1, textEl.fontSize / 20);
+          ctx.beginPath();
+          ctx.moveTo(textEl.x, textEl.y + 2);
+          ctx.lineTo(textEl.x + metrics.width, textEl.y + 2);
+          ctx.stroke();
+        }
+        
+        // Draw strikethrough manually if needed
+        if (textEl.textDecorators?.strikethrough) {
+          const metrics = ctx.measureText(textEl.text);
+          const textHeight = textEl.fontSize * 0.3; // Position strikethrough at ~30% of font height
+          ctx.strokeStyle = element.color;
+          ctx.lineWidth = Math.max(1, textEl.fontSize / 20);
+          ctx.beginPath();
+          ctx.moveTo(textEl.x, textEl.y - textHeight);
+          ctx.lineTo(textEl.x + metrics.width, textEl.y - textHeight);
+          ctx.stroke();
+        }
         break;
       }
       case 'image': {
@@ -758,8 +795,9 @@ export default function InfiniteCanvas({
           opacity,
           roughness,
           strokeStyle,
-          fontSize: 24,
-          fontFamily: 'Arial',
+          fontSize: fontSize,
+          fontFamily: fontFamily,
+          textDecorators: textDecorators,
         };
         setElements((prev) => [...prev, textElement]);
       }
@@ -771,13 +809,7 @@ export default function InfiniteCanvas({
     }
   };
 
-  // Update selected state on elements
-  useEffect(() => {
-    setElements(prev => prev.map(el => ({
-      ...el,
-      selected: selectedElements.has(el.id),
-    })));
-  }, [selectedElements]);
+  // Selection state is now derived during rendering, not stored on elements
 
   // Keyboard shortcuts
   useEffect(() => {

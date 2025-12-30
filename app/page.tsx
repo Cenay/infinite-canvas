@@ -3,7 +3,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import InfiniteCanvas from './components/InfiniteCanvas';
 import Toolbar from './components/Toolbar';
-import { Tool, CanvasElementType, ImageElement, StrokeStyle } from './types';
+import PropertiesPane from './components/PropertiesPane';
+import { Tool, CanvasElementType, ImageElement, StrokeStyle, TextDecorators } from './types';
 
 export default function Home() {
   const [tool, setTool] = useState<Tool>('pen');
@@ -13,6 +14,10 @@ export default function Home() {
   const [opacity, setOpacity] = useState(1);
   const [roughness, setRoughness] = useState(1);
   const [strokeStyle, setStrokeStyle] = useState<StrokeStyle>('solid');
+  const [fontFamily, setFontFamily] = useState('Arial');
+  const [fontSize, setFontSize] = useState(20);
+  const [textDecorators, setTextDecorators] = useState<TextDecorators>({});
+  const [eraserSize, setEraserSize] = useState(20);
   const [history, setHistory] = useState<CanvasElementType[][]>([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -183,35 +188,36 @@ export default function Home() {
       // Don't trigger tool shortcuts if typing in an input
       if (document.activeElement?.tagName === 'INPUT') return;
 
-      // Tool shortcuts
-      switch (e.key.toLowerCase()) {
-        case 'v':
+      // Tool shortcuts (number keys 1-9, 0)
+      switch (e.key) {
+        case '1':
           setTool('select');
           break;
-        case 'p':
-          setTool('pen');
-          break;
-        case 'r':
+        case '2':
           setTool('rectangle');
           break;
-        case 'o':
+        case '3':
+          setTool('diamond');
+          break;
+        case '4':
           setTool('ellipse');
           break;
-        case 'd':
-          if (!e.ctrlKey && !e.metaKey) {
-            setTool('diamond');
-          }
-          break;
-        case 'l':
-          setTool('line');
-          break;
-        case 'a':
+        case '5':
           setTool('arrow');
           break;
-        case 't':
+        case '6':
+          setTool('line');
+          break;
+        case '7':
+          setTool('pen');
+          break;
+        case '8':
           setTool('text');
           break;
-        case 'e':
+        case '9':
+          setTool('image');
+          break;
+        case '0':
           setTool('eraser');
           break;
       }
@@ -246,6 +252,29 @@ export default function Home() {
         canUndo={historyIndex > 0}
         canRedo={historyIndex < history.length - 1}
       />
+      <PropertiesPane
+        tool={tool}
+        color={color}
+        onColorChange={setColor}
+        strokeWidth={strokeWidth}
+        onStrokeWidthChange={setStrokeWidth}
+        fill={fill}
+        onFillChange={setFill}
+        opacity={opacity}
+        onOpacityChange={setOpacity}
+        roughness={roughness}
+        onRoughnessChange={setRoughness}
+        strokeStyle={strokeStyle}
+        onStrokeStyleChange={setStrokeStyle}
+        fontFamily={fontFamily}
+        onFontFamilyChange={setFontFamily}
+        fontSize={fontSize}
+        onFontSizeChange={setFontSize}
+        textDecorators={textDecorators}
+        onTextDecoratorsChange={setTextDecorators}
+        eraserSize={eraserSize}
+        onEraserSizeChange={setEraserSize}
+      />
       <InfiniteCanvas
         tool={tool}
         color={color}
@@ -254,6 +283,10 @@ export default function Home() {
         opacity={opacity}
         roughness={roughness}
         strokeStyle={strokeStyle}
+        fontFamily={fontFamily}
+        fontSize={fontSize}
+        textDecorators={textDecorators}
+        eraserSize={eraserSize}
         onElementsChange={handleElementsChange}
       />
     </div>
