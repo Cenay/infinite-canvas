@@ -81,7 +81,18 @@ export default function InfiniteCanvas({
 
     if (savedElements) {
       try {
-        setElements(JSON.parse(savedElements));
+        const parsed = JSON.parse(savedElements) as CanvasElementType[];
+        // Reconstruct HTMLImageElement for image elements
+        const reconstructed = parsed.map((el) => {
+          if (el.type === 'image' && (el as ImageElement).src) {
+            const imgEl = el as ImageElement;
+            const img = new Image();
+            img.src = imgEl.src;
+            return { ...imgEl, imageData: img };
+          }
+          return el;
+        });
+        setElements(reconstructed);
       } catch (error) {
         console.error('Failed to load canvas elements:', error);
       }
@@ -356,7 +367,7 @@ export default function InfiniteCanvas({
       }
       case 'image': {
         const imgEl = element as ImageElement;
-        if (imgEl.imageData) {
+        if (imgEl.imageData && imgEl.imageData instanceof HTMLImageElement && imgEl.imageData.complete) {
           ctx.drawImage(imgEl.imageData, imgEl.x, imgEl.y, imgEl.width, imgEl.height);
         }
         break;
