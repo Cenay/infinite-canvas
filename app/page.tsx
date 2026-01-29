@@ -188,10 +188,13 @@ export default function Home() {
       // Don't trigger tool shortcuts if typing in an input
       if (document.activeElement?.tagName === 'INPUT') return;
 
-      // Tool shortcuts (number keys 1-9, 0)
+      // Tool shortcuts (number keys 1-9, 0, and h for hand)
       switch (e.key) {
         case '1':
           setTool('select');
+          break;
+        case 'h':
+          setTool('hand');
           break;
         case '2':
           setTool('rectangle');

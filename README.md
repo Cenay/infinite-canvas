@@ -10,17 +10,17 @@ A feature-rich infinite canvas drawing application inspired by Excalidraw, built
 - **Consistent Rendering**: Each shape maintains its unique hand-drawn character with seed-based randomness
 
 ### 🎨 Drawing Tools
-- **Selection Tool (V)**: Select, move, and manipulate elements
-- **Rectangle (R)**: Draw rectangles with optional fill
-- **Diamond (D)**: Create diamond/rhombus shapes
-- **Ellipse (O)**: Draw ellipses with custom dimensions
-- **Circle (C)**: Perfect circles drawn from center
-- **Arrow (A)**: Directional arrows with arrowheads
-- **Line (L)**: Straight lines
-- **Pen (P)**: Freehand drawing
-- **Text (T)**: Add text labels
-- **Image (I)**: Upload and place images
-- **Eraser (E)**: Remove elements by clicking
+- **Selection Tool (1)**: Select, move, and resize elements
+- **Hand Tool (H)**: Pan/navigate the canvas by click-and-drag
+- **Rectangle (2)**: Draw rectangles with optional fill
+- **Diamond (3)**: Create diamond/rhombus shapes
+- **Ellipse (4)**: Draw ellipses with custom dimensions
+- **Arrow (5)**: Directional arrows with arrowheads
+- **Line (6)**: Straight lines
+- **Pen (7)**: Freehand drawing
+- **Text (8)**: Add text labels
+- **Image (9)**: Upload and place images
+- **Eraser (0)**: Remove elements by clicking
 
 ### 🎨 Styling Options
 - **Stroke Color**: Choose from preset colors or use custom color picker
@@ -30,36 +30,45 @@ A feature-rich infinite canvas drawing application inspired by Excalidraw, built
 - **Opacity**: Adjustable transparency (0-100%)
 
 ### 📐 Element Manipulation
-- **Selection**: Click to select individual elements
+- **Selection**: Click any element to select it (works with any tool)
 - **Multi-Select**:
-  - Drag to create selection box
+  - Drag to create selection box (in Select mode)
   - Ctrl/Cmd + Click to add/remove from selection
 - **Move**: Drag selected elements to reposition
+- **Resize**:
+  - 8 resize handles appear when single element is selected
+  - Corner handles: Resize proportionally
+  - Edge handles: Resize width or height independently
+  - **Images**: Corner handles lock aspect ratio; edge handles allow stretching
 - **Delete**: Press Delete or Backspace to remove selected elements
 - **Copy/Paste**: Ctrl/Cmd + C/V to duplicate elements
 - **Duplicate**: Ctrl/Cmd + D to quickly duplicate selection
+- **Cancel Drawing**: Press Escape to cancel in-progress drawing or clear selection
 
 ### 🔄 Canvas Controls
 - **Infinite Canvas**: Pan in any direction
 - **Zoom**: Scroll wheel to zoom in/out
 - **Pan**:
-  - Shift + Drag
-  - Middle mouse button
-  - Select tool + drag empty space
+  - **Hand Tool (H)**: Click and drag to pan
+  - Shift + Drag (any tool)
+  - Middle mouse button (any tool)
 - **Grid**: Visual grid for alignment reference
 
 ### ⚡ Keyboard Shortcuts
-- **V**: Selection tool
-- **P**: Pen/Draw tool
-- **R**: Rectangle
-- **O**: Ellipse
-- **D**: Diamond
-- **L**: Line
-- **A**: Arrow
-- **T**: Text
-- **E**: Eraser
+- **1**: Selection tool
+- **H**: Hand/Pan tool
+- **2**: Rectangle
+- **3**: Diamond
+- **4**: Ellipse
+- **5**: Arrow
+- **6**: Line
+- **7**: Pen/Draw tool
+- **8**: Text
+- **9**: Image
+- **0**: Eraser
+- **Escape**: Cancel drawing / Clear selection
 - **Ctrl/Cmd + Z**: Undo
-- **Ctrl/Cmd + Y**: Redo
+- **Ctrl/Cmd + Shift + Z** or **Ctrl/Cmd + Y**: Redo
 - **Ctrl/Cmd + C**: Copy
 - **Ctrl/Cmd + V**: Paste
 - **Ctrl/Cmd + D**: Duplicate
@@ -183,7 +192,7 @@ infinite-canvas/
 This is a clone focusing on core features. Not implemented:
 - Collaboration/real-time editing
 - Elbow arrows (connector arrows with bends)
-- Element rotation handles
+- Element rotation (resize handles are implemented)
 - Layer ordering (bring to front/send to back)
 - SVG export
 - Library of shapes
@@ -220,6 +229,20 @@ Uses [Rough.js](https://roughjs.com/) for the hand-drawn rendering style.
 ## License
 
 This is a learning/demonstration project. For production use, consider using the official [Excalidraw](https://github.com/excalidraw/excalidraw) project.
+
+## Changelog
+
+### 2026-01-28
+- **Added Hand Tool**: New dedicated pan tool (H key) with grab cursor for intuitive canvas navigation
+- **Added Resize Handles**: 8-point resize handles (corners + edges) appear when element is selected
+  - All element types support resizing (shapes, text, images, paths, lines)
+  - Visual cursor feedback when hovering over handles
+- **Image Aspect Ratio**: Corner handles lock aspect ratio; edge handles allow free stretch/crop
+- **Fixed Image Selection**: Images can now be properly selected and deleted
+- **Fixed Text Selection Bounds**: Text elements now show accurate selection boxes based on measured text width
+- **Fixed Drawing Artifacts**: Switching tools mid-draw no longer leaves ghost elements
+- **Added Escape Key**: Cancel in-progress drawing or clear current selection
+- **Universal Selection**: Click any element to select it regardless of active tool (except eraser)
 
 ## Contributing
 

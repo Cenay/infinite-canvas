@@ -65,7 +65,15 @@ export default function InfiniteCanvas({
   });
   const [selectedElements, setSelectedElements] = useState<Set<string>>(new Set());
   const [selectionBox, setSelectionBox] = useState<{ start: Point; end: Point } | null>(null);
+  const [resizeHandle, setResizeHandle] = useState<{
+    handle: 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+    elementId: string;
+    startBounds: { x: number; y: number; width: number; height: number };
+    startPoint: Point;
+  } | null>(null);
+  const [hoveredHandle, setHoveredHandle] = useState<'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
+  const textMeasureCache = useRef<Map<string, { width: number; height: number }>>(new Map());
 
   // Initialize rough canvas
   useEffect(() => {
@@ -81,7 +89,18 @@ export default function InfiniteCanvas({
 
     if (savedElements) {
       try {
-        setElements(JSON.parse(savedElements));
+        const parsed = JSON.parse(savedElements) as CanvasElementType[];
+        // Reconstruct HTMLImageElement for image elements
+        const loadedElements = parsed.map((el) => {
+          if (el.type === 'image' && (el as ImageElement).src) {
+            const imgEl = el as ImageElement;
+            const img = new Image();
+            img.src = imgEl.src;
+            return { ...imgEl, imageData: img };
+          }
+          return el;
+        });
+        setElements(loadedElements);
       } catch (error) {
         console.error('Failed to load canvas elements:', error);
       }
@@ -95,6 +114,12 @@ export default function InfiniteCanvas({
       }
     }
   }, []);
+
+  // Clear drawing state when tool changes
+  useEffect(() => {
+    setCurrentElement(null);
+    setIsDrawing(false);
+  }, [tool]);
 
   // Save to localStorage when elements change
   useEffect(() => {
@@ -131,6 +156,61 @@ export default function InfiniteCanvas({
         return [];
     }
   };
+
+  // Measure text dimensions
+  const measureText = useCallback((text: string, fontSize: number, fontFamily: string): { width: number; height: number } => {
+    const cacheKey = `${text}-${fontSize}-${fontFamily}`;
+    if (textMeasureCache.current.has(cacheKey)) {
+      return textMeasureCache.current.get(cacheKey)!;
+    }
+
+    const canvas = canvasRef.current;
+    if (!canvas) return { width: 100, height: fontSize };
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return { width: 100, height: fontSize };
+
+    ctx.font = `${fontSize}px ${fontFamily}`;
+    const metrics = ctx.measureText(text);
+    const width = metrics.width;
+    const height = fontSize * 1.2; // Approximate line height
+
+    textMeasureCache.current.set(cacheKey, { width, height });
+    return { width, height };
+  }, []);
+
+  // Get resize handle positions for an element's bounds
+  const getResizeHandles = useCallback((bounds: { x: number; y: number; width: number; height: number }) => {
+    const handleSize = 8;
+    return {
+      nw: { x: bounds.x - handleSize / 2, y: bounds.y - handleSize / 2, cursor: 'nwse-resize' },
+      n: { x: bounds.x + bounds.width / 2 - handleSize / 2, y: bounds.y - handleSize / 2, cursor: 'ns-resize' },
+      ne: { x: bounds.x + bounds.width - handleSize / 2, y: bounds.y - handleSize / 2, cursor: 'nesw-resize' },
+      e: { x: bounds.x + bounds.width - handleSize / 2, y: bounds.y + bounds.height / 2 - handleSize / 2, cursor: 'ew-resize' },
+      se: { x: bounds.x + bounds.width - handleSize / 2, y: bounds.y + bounds.height - handleSize / 2, cursor: 'nwse-resize' },
+      s: { x: bounds.x + bounds.width / 2 - handleSize / 2, y: bounds.y + bounds.height - handleSize / 2, cursor: 'ns-resize' },
+      sw: { x: bounds.x - handleSize / 2, y: bounds.y + bounds.height - handleSize / 2, cursor: 'nesw-resize' },
+      w: { x: bounds.x - handleSize / 2, y: bounds.y + bounds.height / 2 - handleSize / 2, cursor: 'ew-resize' },
+    };
+  }, []);
+
+  // Check if a point is on a resize handle
+  const getHandleAtPoint = useCallback((point: Point, bounds: { x: number; y: number; width: number; height: number }): 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | null => {
+    const handleSize = 12; // Slightly larger hit area
+    const handles = getResizeHandles(bounds);
+
+    for (const [key, handle] of Object.entries(handles)) {
+      if (
+        point.x >= handle.x - handleSize / 2 &&
+        point.x <= handle.x + handleSize &&
+        point.y >= handle.y - handleSize / 2 &&
+        point.y <= handle.y + handleSize
+      ) {
+        return key as 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+      }
+    }
+    return null;
+  }, [getResizeHandles]);
 
   // Draw everything on canvas
   const draw = useCallback(() => {
@@ -215,7 +295,7 @@ export default function InfiniteCanvas({
 
     ctx.globalAlpha = element.opacity ?? 1;
 
-    // Draw selection highlight (derive from selectedElements set)
+    // Draw selection highlight and resize handles
     if (selectedElements.has(element.id)) {
       ctx.save();
       ctx.strokeStyle = '#6965db';
@@ -224,10 +304,43 @@ export default function InfiniteCanvas({
 
       const bounds = getElementBounds(element);
       if (bounds) {
-        ctx.strokeRect(bounds.x - 5, bounds.y - 5, bounds.width + 10, bounds.height + 10);
+        // Draw selection rectangle
+        const padding = 5;
+        const selectionBounds = {
+          x: bounds.x - padding,
+          y: bounds.y - padding,
+          width: bounds.width + padding * 2,
+          height: bounds.height + padding * 2,
+        };
+        ctx.strokeRect(selectionBounds.x, selectionBounds.y, selectionBounds.width, selectionBounds.height);
+
+        ctx.setLineDash([]);
+
+        // Draw resize handles (only if single element selected)
+        if (selectedElements.size === 1) {
+          const handleSize = 8 / viewport.scale;
+          const handles = [
+            { x: selectionBounds.x, y: selectionBounds.y }, // nw
+            { x: selectionBounds.x + selectionBounds.width / 2, y: selectionBounds.y }, // n
+            { x: selectionBounds.x + selectionBounds.width, y: selectionBounds.y }, // ne
+            { x: selectionBounds.x + selectionBounds.width, y: selectionBounds.y + selectionBounds.height / 2 }, // e
+            { x: selectionBounds.x + selectionBounds.width, y: selectionBounds.y + selectionBounds.height }, // se
+            { x: selectionBounds.x + selectionBounds.width / 2, y: selectionBounds.y + selectionBounds.height }, // s
+            { x: selectionBounds.x, y: selectionBounds.y + selectionBounds.height }, // sw
+            { x: selectionBounds.x, y: selectionBounds.y + selectionBounds.height / 2 }, // w
+          ];
+
+          ctx.fillStyle = '#ffffff';
+          ctx.strokeStyle = '#6965db';
+          ctx.lineWidth = 2 / viewport.scale;
+
+          handles.forEach((handle) => {
+            ctx.fillRect(handle.x - handleSize / 2, handle.y - handleSize / 2, handleSize, handleSize);
+            ctx.strokeRect(handle.x - handleSize / 2, handle.y - handleSize / 2, handleSize, handleSize);
+          });
+        }
       }
 
-      ctx.setLineDash([]);
       ctx.restore();
     }
 
@@ -390,7 +503,8 @@ export default function InfiniteCanvas({
       }
       case 'text': {
         const el = element as TextElement;
-        return { x: el.x, y: el.y - el.fontSize, width: 100, height: el.fontSize };
+        const textSize = measureText(el.text, el.fontSize, el.fontFamily || 'Arial');
+        return { x: el.x, y: el.y - textSize.height, width: textSize.width, height: textSize.height };
       }
       case 'path': {
         const el = element as PathElement;
@@ -403,6 +517,10 @@ export default function InfiniteCanvas({
           width: Math.max(...xs) - Math.min(...xs),
           height: Math.max(...ys) - Math.min(...ys),
         };
+      }
+      case 'image': {
+        const el = element as ImageElement;
+        return { x: el.x, y: el.y, width: el.width, height: el.height };
       }
       default:
         return null;
@@ -447,18 +565,47 @@ export default function InfiniteCanvas({
     const screenY = e.clientY - rect.top;
     const canvasPoint = screenToCanvas(screenX, screenY);
 
-    // Pan with middle mouse button or space + left click
-    if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+    // Pan with middle mouse button, space + left click, or hand tool
+    if (e.button === 1 || (e.button === 0 && e.shiftKey) || tool === 'hand') {
       setIsPanning(true);
       setLastPanPoint({ x: e.clientX, y: e.clientY });
       return;
     }
 
-    if (tool === 'select') {
-      // Check if clicking on an element
+    // Check if clicking on a resize handle (only when single element is selected)
+    if (selectedElements.size === 1) {
+      const selectedId = Array.from(selectedElements)[0];
+      const selectedElement = elements.find(el => el.id === selectedId);
+      if (selectedElement) {
+        const bounds = getElementBounds(selectedElement);
+        if (bounds) {
+          const padding = 5;
+          const selectionBounds = {
+            x: bounds.x - padding,
+            y: bounds.y - padding,
+            width: bounds.width + padding * 2,
+            height: bounds.height + padding * 2,
+          };
+          const handle = getHandleAtPoint(canvasPoint, selectionBounds);
+          if (handle) {
+            setResizeHandle({
+              handle,
+              elementId: selectedId,
+              startBounds: bounds,
+              startPoint: canvasPoint,
+            });
+            return;
+          }
+        }
+      }
+    }
+
+    // Check if clicking on an element (works with any tool except eraser)
+    if (tool !== 'eraser') {
       const clickedElement = [...elements].reverse().find(el => isPointInElement(canvasPoint, el));
 
       if (clickedElement) {
+        // Select the clicked element
         if (!e.ctrlKey && !e.metaKey) {
           setSelectedElements(new Set([clickedElement.id]));
         } else {
@@ -472,15 +619,19 @@ export default function InfiniteCanvas({
             return next;
           });
         }
+        // Allow dragging to move selected elements
         setIsPanning(true);
         setLastPanPoint({ x: e.clientX, y: e.clientY });
-      } else {
-        // Start selection box
-        if (!e.ctrlKey && !e.metaKey) {
-          setSelectedElements(new Set());
-        }
-        setSelectionBox({ start: canvasPoint, end: canvasPoint });
+        return;
       }
+    }
+
+    if (tool === 'select') {
+      // Start selection box on empty space
+      if (!e.ctrlKey && !e.metaKey) {
+        setSelectedElements(new Set());
+      }
+      setSelectionBox({ start: canvasPoint, end: canvasPoint });
       return;
     }
 
@@ -588,6 +739,155 @@ export default function InfiniteCanvas({
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
     const canvasPoint = screenToCanvas(screenX, screenY);
+
+    // Handle resizing
+    if (resizeHandle) {
+      const { handle, elementId, startBounds, startPoint } = resizeHandle;
+      const dx = canvasPoint.x - startPoint.x;
+      const dy = canvasPoint.y - startPoint.y;
+
+      setElements(prev => prev.map(el => {
+        if (el.id !== elementId) return el;
+
+        let newX = startBounds.x;
+        let newY = startBounds.y;
+        let newWidth = startBounds.width;
+        let newHeight = startBounds.height;
+
+        // Calculate new bounds based on which handle is being dragged
+        switch (handle) {
+          case 'nw':
+            newX = startBounds.x + dx;
+            newY = startBounds.y + dy;
+            newWidth = startBounds.width - dx;
+            newHeight = startBounds.height - dy;
+            break;
+          case 'n':
+            newY = startBounds.y + dy;
+            newHeight = startBounds.height - dy;
+            break;
+          case 'ne':
+            newY = startBounds.y + dy;
+            newWidth = startBounds.width + dx;
+            newHeight = startBounds.height - dy;
+            break;
+          case 'e':
+            newWidth = startBounds.width + dx;
+            break;
+          case 'se':
+            newWidth = startBounds.width + dx;
+            newHeight = startBounds.height + dy;
+            break;
+          case 's':
+            newHeight = startBounds.height + dy;
+            break;
+          case 'sw':
+            newX = startBounds.x + dx;
+            newWidth = startBounds.width - dx;
+            newHeight = startBounds.height + dy;
+            break;
+          case 'w':
+            newX = startBounds.x + dx;
+            newWidth = startBounds.width - dx;
+            break;
+        }
+
+        // Ensure minimum size
+        const minSize = 10;
+        if (newWidth < minSize) {
+          if (handle.includes('w')) newX = startBounds.x + startBounds.width - minSize;
+          newWidth = minSize;
+        }
+        if (newHeight < minSize) {
+          if (handle.includes('n')) newY = startBounds.y + startBounds.height - minSize;
+          newHeight = minSize;
+        }
+
+        // Apply resize based on element type
+        switch (el.type) {
+          case 'rectangle':
+          case 'ellipse':
+          case 'diamond': {
+            return { ...el, x: newX, y: newY, width: newWidth, height: newHeight };
+          }
+          case 'image': {
+            // Corner handles lock aspect ratio, edge handles allow free resize
+            const isCornerHandle = ['nw', 'ne', 'se', 'sw'].includes(handle);
+            if (isCornerHandle) {
+              const aspectRatio = startBounds.width / startBounds.height;
+              let finalWidth = newWidth;
+              let finalHeight = newHeight;
+              let finalX = newX;
+              let finalY = newY;
+
+              // Determine which dimension to use as reference based on which changed more
+              const widthChange = Math.abs(newWidth - startBounds.width);
+              const heightChange = Math.abs(newHeight - startBounds.height);
+
+              if (widthChange > heightChange) {
+                finalHeight = newWidth / aspectRatio;
+              } else {
+                finalWidth = newHeight * aspectRatio;
+              }
+
+              // Adjust position for handles that anchor from right or bottom
+              if (handle === 'nw') {
+                finalX = startBounds.x + startBounds.width - finalWidth;
+                finalY = startBounds.y + startBounds.height - finalHeight;
+              } else if (handle === 'ne') {
+                finalY = startBounds.y + startBounds.height - finalHeight;
+              } else if (handle === 'sw') {
+                finalX = startBounds.x + startBounds.width - finalWidth;
+              }
+              // 'se' doesn't need adjustment - it anchors from top-left
+
+              return { ...el, x: finalX, y: finalY, width: finalWidth, height: finalHeight };
+            }
+            // Edge handles - free resize (stretch/crop)
+            return { ...el, x: newX, y: newY, width: newWidth, height: newHeight };
+          }
+          case 'circle': {
+            const radius = Math.max(newWidth, newHeight) / 2;
+            return { ...el, x: newX + radius, y: newY + radius, radius };
+          }
+          case 'line':
+          case 'arrow': {
+            const lineEl = el as LineElement | ArrowElement;
+            // For lines, resize adjusts endpoints
+            const scaleX = newWidth / startBounds.width;
+            const scaleY = newHeight / startBounds.height;
+            return {
+              ...lineEl,
+              startX: newX + (lineEl.startX - startBounds.x) * scaleX,
+              startY: newY + (lineEl.startY - startBounds.y) * scaleY,
+              endX: newX + (lineEl.endX - startBounds.x) * scaleX,
+              endY: newY + (lineEl.endY - startBounds.y) * scaleY,
+            };
+          }
+          case 'text': {
+            const textEl = el as TextElement;
+            // Scale font size proportionally
+            const scale = newHeight / startBounds.height;
+            return { ...textEl, x: newX, y: newY + newHeight, fontSize: Math.max(8, textEl.fontSize * scale) };
+          }
+          case 'path': {
+            const pathEl = el as PathElement;
+            const scaleX = newWidth / Math.max(startBounds.width, 1);
+            const scaleY = newHeight / Math.max(startBounds.height, 1);
+            return {
+              ...pathEl,
+              points: pathEl.points.map(p => ({
+                x: newX + (p.x - startBounds.x) * scaleX,
+                y: newY + (p.y - startBounds.y) * scaleY,
+              })),
+            };
+          }
+          default:
+            return el;
+        }
+      }));
+      return;
+    }
 
     if (isPanning && lastPanPoint) {
       const dx = e.clientX - lastPanPoint.x;
@@ -721,9 +1021,41 @@ export default function InfiniteCanvas({
         break;
       }
     }
+
+    // Check for handle hover (for cursor feedback)
+    if (selectedElements.size === 1 && !isDrawing && !isPanning && !resizeHandle) {
+      const selectedId = Array.from(selectedElements)[0];
+      const selectedElement = elements.find(el => el.id === selectedId);
+      if (selectedElement) {
+        const bounds = getElementBounds(selectedElement);
+        if (bounds) {
+          const padding = 5;
+          const selectionBounds = {
+            x: bounds.x - padding,
+            y: bounds.y - padding,
+            width: bounds.width + padding * 2,
+            height: bounds.height + padding * 2,
+          };
+          const handle = getHandleAtPoint(canvasPoint, selectionBounds);
+          setHoveredHandle(handle);
+        } else {
+          setHoveredHandle(null);
+        }
+      } else {
+        setHoveredHandle(null);
+      }
+    } else if (!resizeHandle) {
+      setHoveredHandle(null);
+    }
   };
 
   const handleMouseUp = () => {
+    // Clear resize handle
+    if (resizeHandle) {
+      setResizeHandle(null);
+      return;
+    }
+
     if (selectionBox) {
       // Select elements in box
       const minX = Math.min(selectionBox.start.x, selectionBox.end.x);
@@ -821,6 +1153,16 @@ export default function InfiniteCanvas({
         setSelectedElements(new Set());
       }
 
+      // Escape to cancel drawing or clear selection
+      if (e.key === 'Escape') {
+        if (isDrawing || currentElement) {
+          setCurrentElement(null);
+          setIsDrawing(false);
+        } else if (selectedElements.size > 0) {
+          setSelectedElements(new Set());
+        }
+      }
+
       // Copy
       if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedElements.size > 0) {
         const selected = elements.filter(el => selectedElements.has(el.id));
@@ -870,7 +1212,7 @@ export default function InfiniteCanvas({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedElements, elements, textInput.show]);
+  }, [selectedElements, elements, textInput.show, isDrawing, currentElement]);
 
   return (
     <>
@@ -882,7 +1224,18 @@ export default function InfiniteCanvas({
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
         className="absolute inset-0"
-        style={{ cursor: tool === 'select' || isPanning ? 'grab' : 'crosshair' }}
+        style={{
+          cursor: resizeHandle || hoveredHandle
+            ? {
+                nw: 'nwse-resize', n: 'ns-resize', ne: 'nesw-resize', e: 'ew-resize',
+                se: 'nwse-resize', s: 'ns-resize', sw: 'nesw-resize', w: 'ew-resize'
+              }[resizeHandle?.handle || hoveredHandle!]
+            : tool === 'hand'
+              ? (isPanning ? 'grabbing' : 'grab')
+              : tool === 'select'
+                ? 'default'
+                : 'crosshair'
+        }}
       />
       {textInput.show && (
         <input

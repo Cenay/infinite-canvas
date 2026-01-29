@@ -29,6 +29,7 @@ interface ToolbarProps {
 
 const tools: { id: Tool; icon: string; label: string; shortcut: string }[] = [
   { id: 'select', icon: '⌖', label: 'Selection', shortcut: '1' },
+  { id: 'hand', icon: '✋', label: 'Hand (Pan)', shortcut: 'h' },
   { id: 'rectangle', icon: '▭', label: 'Rectangle', shortcut: '2' },
   { id: 'diamond', icon: '◇', label: 'Diamond', shortcut: '3' },
   { id: 'ellipse', icon: '○', label: 'Ellipse', shortcut: '4' },

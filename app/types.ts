@@ -1,4 +1,4 @@
-export type Tool = 'select' | 'pen' | 'rectangle' | 'circle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'text' | 'image' | 'eraser';
+export type Tool = 'select' | 'hand' | 'pen' | 'rectangle' | 'circle' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'text' | 'image' | 'eraser';
 
 export type StrokeStyle = 'solid' | 'dashed' | 'dotted';
 
